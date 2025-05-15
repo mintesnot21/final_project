@@ -1,24 +1,25 @@
-const { default: mongoose, mongo }= require("mongoose")
+const { default: mongoose, }= require("mongoose")
 const userSchema = new mongoose.Schema({
     firstname:{
         type:String,
-        require:[true, "user name is required."]
+        required:[true, "user name is required."]
     },
     lastname:{
         type:String,
-        require:[true, "user name is required."]
+        required:[true, "user name is required."]
     },
     email:{
         type:String,
-        require:[true, "email is required."]
+        required:[true, "email is required."],
+        unique:true
     },
     password:{
         type:String,
-        require:[true, "password is required."]
+        required:[true, "password is required."]
     },
     phoneNumber:{
         type:String,
-        require:true
+        required:true
     },
     membership_date:{
         type:Date,
