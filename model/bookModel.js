@@ -9,7 +9,7 @@ const bookSchema = new mongoose.Schema({
         type:String,
         required:[true, "Author is required"]
     },
-    file:{
+    book:{
         type:String,
     },
     coverImage:{
@@ -18,8 +18,22 @@ const bookSchema = new mongoose.Schema({
     isbn:{
         type:String
     },
-    catagory:{
-        type:String
+    format:{
+        type:String,
+        enum:["epub", "pdf"]
+    },
+    rating:{
+        type:Number,
+        min:1,
+        max:5
+    },
+    isHardCopy:{
+        type:Boolean,
+        default:false
+    },
+    category:{
+        type:String,
+        enum:['Fiction', 'Tech', "Biography", "Science"]
     },
     total_copies:{
         type:Number,
@@ -27,13 +41,14 @@ const bookSchema = new mongoose.Schema({
     },
     available_copies:{
         type:Number,
+        default:1
     },
     publisher:{
         type:String
     },
     status:{
         type:String,
-        enum:["available","issued","damaged","lost"],
+        enum:["available","unavailable","issued","damaged","lost","checkedout"],
         default:"available"
     },
     publicationYear:{

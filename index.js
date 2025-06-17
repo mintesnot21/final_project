@@ -22,12 +22,14 @@ connect("mongodb://localhost:27017/library")
 
 
 app.use(cors({
+    methods:["GET", "POST", "PATCH", "DELETE", "PUT"],
     origin: 'http://localhost:5173', // frontend origin
     credentials: true,               // Allow cookies / auth
 }))
 
-app.use(express.static("./uploads"))
+app.use(express.urlencoded({extended:true}))
 app.use(express.json())
+app.use(express.static("./uploads"))
 app.use(cookieParser())
 app.use(logger("common"))
 

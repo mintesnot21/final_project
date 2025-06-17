@@ -1,13 +1,20 @@
 const { default: mongoose, mongo }= require("mongoose")
 const validator = require("validator")
 const userSchema = new mongoose.Schema({
+    id:{
+        type:String
+    },
     firstname:{
         type:String,
-        require:[true, "user name is required."]
+        require
     },
     lastname:{
         type:String,
-        require:[true, "user name is required."]
+        require
+    },
+    username:{
+        type:String,
+        require
     },
     email:{
         type:String,
@@ -29,9 +36,6 @@ const userSchema = new mongoose.Schema({
         enum:["active", "inactive", "pending"],
         default:"active"
     },
-    profile_picture:{
-
-    },
     phoneNumber:{
         type:String,
         require:true,
@@ -41,10 +45,13 @@ const userSchema = new mongoose.Schema({
             }
         }
     },
-    membership_date:{
+    membershipDate:{
         type:Date,
         default:Date.now
     },
+    fine:{
+        type:Number,
+    }
 },{timestamps:true})
 
 

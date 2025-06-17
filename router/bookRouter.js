@@ -13,13 +13,22 @@ const { upload } = require("../fileUploads")
 const bookRouter = require("express").Router()
 
 
-bookRouter.get("/book/reserve/:id", reserveBook)
-bookRouter.get("/book/order/:id",checkUser, loanBook)
-bookRouter.get("/books",getAllbooks)
-bookRouter.get("/book/:id",getBookById)
-bookRouter.post("/book",upload.single("file"), uploadBook)
-bookRouter.patch("/book/:id",updateBook)
-bookRouter.delete("/book/:id",deleteBook)
+bookRouter.post("/book/order/:id",checkUser, loanBook)
+bookRouter.get("/books", getAllbooks)
+bookRouter.get("/book/:id",checkUser, getBookById)
+
+bookRouter.post("/book", upload.fields([
+    { name: 'book', maxCount: 1 },
+    { name: 'coverImage', maxCount: 1 },
+  ]), uploadBook)
+
+bookRouter.patch("/book/:id",
+    upload.fields([
+        { name: 'book', maxCount: 1 },
+        { name: 'coverImage', maxCount: 1 },
+      ])
+    ,updateBook)
+bookRouter.delete("/book/delete/:id",deleteBook)
 
 
 module.exports = { bookRouter }

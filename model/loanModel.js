@@ -19,9 +19,10 @@ const loanSchema = new mongoose.Schema({
     returnDate:{
         type:Date
     },
-    fine:{
-        type:Number
-    }
+    returned:{
+        type:Boolean,
+        default:false
+    },
 },{timeseries:true})
 
 const loanModel = mongoose.model("loan",loanSchema)

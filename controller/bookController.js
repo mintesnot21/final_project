@@ -1,7 +1,13 @@
 const { bookModel } = require("../model/bookModel")
 const { loanModel } = require("../model/loanModel")
 const { reservationModel } = require("../model/reservationModel")
+const fs = require("fs")
+
+
+
 const getAllbooks = async(req,res)=>{
+    console.log("get all book route fired")
+
     try {
         const books = await bookModel.find()
         res.status(200).json({
@@ -37,60 +43,64 @@ const getBookById = async(req,res)=>{
 
 const uploadBook = async(req,res)=>{
     console.log("upload book route fired")
-    const { 
-            title,
-            author,
-            isbn,
-            catagory,
-            total_copies,
-            available_copies,
-            publisher,
-            status,
-            publicationYear,
-            description
-         } = req.body;
-    const fileData = {
-      ...req.file,
-      title,
-      author,
-    //   isbn,
-    //   catagory,
-    //   total_copies,
-    //   available_copies,
-    //   publisher,
-    //   status,
-    //   publicationYear,
-    //   description
-    };
-    console.log(req.file)
+    const book = req.files['book']?.[0].originalname || '';
+    const coverImage = req.files['coverImage']?.[0].originalname || '';
+    try {
+        const uploadedBook = new bookModel({
+            ...req.body,
+            book:book,
+            coverImage:coverImage
+            })
 
+            const saved = await uploadedBook.save();
+            console.log("uploaded book: ",saved)
+        res.status(200).json({
+            book:saved
+        })
 
-    // try {
-    //     const newBook = new bookModel({
-    //         title:title,
-    //         author:fileData.author,
-    //         file:fileData.originalname,
-    //         coverImage:fileData.image
-    //     })
-
-    //     const book = await newBook.save();
-    //     res.status(201).json({
-    //         success:true,
-    //         newBook
-    //     })
-    // } catch (error) {
-    //     res.status(500).json({
-    //         error:error.message
-    //     })
-    //     console.log(error.message)
-    // }
+    } catch (error) {
+        res.status(500).json({
+            error:error.message
+        })
+        console.log(error.message)
+    }
+  
 }
 
 const updateBook = async(req, res)=>{
-    const bookId = req.params.id
+    
     try {
-        const book = await bookModel.findByIdAndUpdate({_id:bookId},req.body)
+        const bookfile = req.files['book']?.[0].originalname || '';
+        const coverImage = req.files['coverImage']?.[0].originalname || '';
+        const updatedBook = await bookModel.findByIdAndUpdate(req.params.id,
+                                                        {
+                                                        ...req.body,
+                                                        book:bookfile,
+                                                        coverImage:coverImage
+                                                        })
+            res.status(200).json({message:"book updated successfully." })
+    } catch (error) {
+        res.status(500).json({
+            error:error.message
+        })
+        console.log(error)
+    }
+}
 
+const deleteBook = async(req,res)=>{
+    const bookId = req.params.id
+    console.log("delete book route fired")
+    try {
+        if(!bookId){
+            res.status(404).json({
+                error:"book not found."
+            })
+            return
+        }
+        await bookModel.findByIdAndDelete(bookId)
+        res.status(204).json({
+            message:"successfully deleted the book"
+        })
     } catch (error) {
         res.status(500).json({
             error:error.message
@@ -98,38 +108,44 @@ const updateBook = async(req, res)=>{
     }
 }
 
-const deleteBook = async(req,res)=>{
-    const bookId = req.params.id
-    try {
-        
-    } catch (error) {
-        
-    }
-}
-
 const loanBook = async(req,res)=>{
+    console.log("loan book route fires")
     const userId = req.user._id
     const bookId = req.params.id
+
     
     try { 
         const loans = await loanModel.find()
         const book = await bookModel.findById(bookId)
+        const reservations = await reservationModel.find();
         
+
+
         if(!book){
             res.status(404).json({
                 message:"book not found."
             })
             return
         }
-        let prevReserve = loans.map(loan => {
-             let loaned = loan.userId.includes(userId)
+
+        let prevLoan = loans.map(loan => {
+             let loaned = loan.userId?.includes(userId)
              return loaned
         });
-        console.log(prevReserve);
-        
+
+        let prevReservation = reservations?.map(user =>{
+            let reserved = user.userId.includes(userId)
+            return reserved
+        })
 
         if(book.available_copies <= 0){
-            if(!prevReserve[0]){
+            if(prevReservation){
+                res.status(403).json({
+                    message:"you have previos reservation."
+                })
+                return;
+            }
+            if(!prevLoan[0] ){
                 let reservation = new reservationModel({
                     userId:userId,
                     bookId:book,
@@ -145,18 +161,18 @@ const loanBook = async(req,res)=>{
 
             }
             res.status(403).json({
-                message:"you already have previous reservation."
+                message:"you must return loaned book in order to reserve new one."
             })
 
         }
+        console.log(book)
         if(book.available_copies > 0 && book.status == "available"  ){
            let loan = new loanModel({
                 userId:userId,
                 bookId:bookId,
-                dueDate:"2025-05-22",
-                returnDate:"2025-05-22"
+                dueDate:new Date(),
+                returnDate:new Date(new Date().setDate(new Date().getDate() + 8))
             })
-
             const loaned = await loan.save();
             res.status(200).json({
                 success:true,
@@ -176,7 +192,10 @@ const loanBook = async(req,res)=>{
     }
 }
 
+
+
 const reserveBook = async(req,res)=>{}
+
 
 
 module.exports = {
@@ -186,5 +205,4 @@ module.exports = {
     updateBook,
     deleteBook,
     loanBook,
-    reserveBook
 }
