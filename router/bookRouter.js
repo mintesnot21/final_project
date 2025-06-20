@@ -6,7 +6,8 @@ const {
     updateBook, 
     deleteBook ,
     loanBook,
-    reserveBook
+    reserveBook,
+    returnBook
 } = require("../controller/bookController")
 const { upload } = require("../fileUploads")
 
@@ -29,6 +30,6 @@ bookRouter.patch("/book/:id",
       ])
     ,updateBook)
 bookRouter.delete("/book/delete/:id",deleteBook)
-
+bookRouter.post("/book/return", returnBook)
 
 module.exports = { bookRouter }

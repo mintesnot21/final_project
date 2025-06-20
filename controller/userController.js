@@ -137,11 +137,13 @@ const userStatistics = async(req,res)=>{
 const notifyUser = async(req, res)=>{
     let userId = req.userId
     let overDueLoan = await loanModel.find({returnDate:{$lt:Date.now}, returned:false})
-    overDueLoan.map((user)=>{
+    overDueLoan.map(async(user)=>{
         if(user.userId.includes(userId)){
-
+            let user = await userModel.findById(userId)
 
             //notfication logic goes here
+
+            return
         }
     })
 }

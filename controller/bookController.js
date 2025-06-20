@@ -133,18 +133,19 @@ const loanBook = async(req,res)=>{
              return loaned
         });
 
-        let prevReservation = reservations?.map(user =>{
-            let reserved = user.userId.includes(userId)
+        let prevReservation = reservations?.forEach(user =>{
+            let reserved = user.userId.incldes(userId)
             return reserved
         })
 
-        if(book.available_copies <= 0){
-            if(prevReservation){
+        if(!prevReservation){
+            if(book.available_copies <= 0){
                 res.status(403).json({
-                    message:"you have previos reservation."
+                    message:"there is no copy in our catalog, we will inform you when book is available."
                 })
                 return;
             }
+
             if(!prevLoan[0] ){
                 let reservation = new reservationModel({
                     userId:userId,
@@ -155,36 +156,51 @@ const loanBook = async(req,res)=>{
                 
                 await reservation.save();
                 res.status(200).json({
-                    message:"there is no copy in our catalog, we will inform you when book is available."
                 })
                 return
 
             }
             res.status(403).json({
-                message:"you must return loaned book in order to reserve new one."
+                message:"you must return loaned book in order to loan new one."
             })
 
         }
-        console.log(book)
-        if(book.available_copies > 0 && book.status == "available"  ){
-           let loan = new loanModel({
-                userId:userId,
-                bookId:bookId,
-                dueDate:new Date(),
-                returnDate:new Date(new Date().setDate(new Date().getDate() + 8))
+        if(prevLoan[0]){
+            res.status(400).json({
+                message:"you must return loaned book in order to loan new one."
             })
-            const loaned = await loan.save();
-            res.status(200).json({
-                success:true,
-                loaned
-            })
+        }
 
-            if(loaned){
-                book.available_copies--
-                await book.save()
+        if(!prevLoan[prevLoan.length - 1]){
+            if(book.available_copies > 0 && book.status == "available"){
+               let loan = new loanModel({
+                    userId:userId,
+                    bookId:bookId,
+                    dueDate:new Date(),
+                    returnDate:new Date(new Date().setDate(new Date().getDate() + 8))
+                })
+                const loaned = await loan.save();
+                res.status(200).json({
+                    success:true,
+                    loaned
+                })
+    
+                if(loaned){
+                    book.available_copies--
+                    await book.save()
+                }
+            }else{
+                res.status(400).json({
+                    message:"book is not availabe in our catalog."
+                })
             }
         }
-        
+        else{
+            res.status(400).json({
+                message:"you must return loaned book in order to loan new one."
+            })
+        }
+
     } catch (error) {
         res.status(500).json({
             error
@@ -192,6 +208,40 @@ const loanBook = async(req,res)=>{
     }
 }
 
+const returnBook = async(req,res)=>{
+    const{ userId, bookId }= req.body
+ try {
+    let loans = await loanModel.find();
+
+    let hasLoan = loans.findIndex(loan => loan.userId.includes(userId));
+
+   console.log(hasLoan)
+   if(hasLoan !== -1 ){
+    const loanerId = loans.map(loan =>{
+        return loan.userId.filter(id => id == userId)
+    })
+    const book = await bookModel.findById(bookId)
+    console.log(loanerId)
+    // let filtered = loanerId.filter(lId  => lId != userId )
+
+    // const userInLoan = await loanModel.findOneAndUpdate({userId:userId}, {userId:filtered})
+    // if(book.available_copies <= book.total_copies){
+    //     book.available_copies++;
+    // }
+    // await book.save()
+    
+    // res.status(200).json({
+    //     message:"returned successfully."
+    // })
+    return;
+   }
+ } catch (error) {
+    res.status(500).json({
+        error:error.message
+    })
+ }
+ console.log("userId", userId, "bookId", bookId)
+}
 
 
 const reserveBook = async(req,res)=>{}
@@ -205,4 +255,5 @@ module.exports = {
     updateBook,
     deleteBook,
     loanBook,
+    returnBook
 }
