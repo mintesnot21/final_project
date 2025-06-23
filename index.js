@@ -10,6 +10,7 @@ const { userRouter } = require("./router/userRouter");
 const { testModel } = require("./model/testModel");
 const errorController = require("./controller/errorController");
 const { upload } = require("./fileUploads");
+const { calculateFine } = require("./utils/calculateFee");
 
 
 
@@ -39,6 +40,15 @@ app.use("/api/auth",router)
 app.use("/api", bookRouter)
 app.use("/api", userRouter)
 
+app.get("/resetCookie", (req,res)=>{
+    res.cookie("jwt", "")
+    res.send("cookie reseted")
+})
+
+app.get("/readCookies", (req,res)=>{
+    const cookie = req.cookies.jwt;
+    res.status(200).send(cookie)
+})
 // app.use(errorController)
 
 

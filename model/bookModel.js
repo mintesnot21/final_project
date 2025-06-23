@@ -56,8 +56,7 @@ const bookSchema = new mongoose.Schema({
     },
     description:{
         type:String
-    },
-
+    }
 },{timestamps:true})
 
 const bookModel = mongoose.model("books",bookSchema)

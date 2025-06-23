@@ -7,14 +7,16 @@ const {
     deleteBook ,
     loanBook,
     reserveBook,
-    returnBook
+    returnBook,
+    getHardCopyBooks
 } = require("../controller/bookController")
 const { upload } = require("../fileUploads")
 
 const bookRouter = require("express").Router()
 
 
-bookRouter.post("/book/order/:id",checkUser, loanBook)
+bookRouter.post("/book/order/:id", loanBook)
+bookRouter.get('/books/hardCopy', getHardCopyBooks)
 bookRouter.get("/books", getAllbooks)
 bookRouter.get("/book/:id",checkUser, getBookById)
 
@@ -31,5 +33,4 @@ bookRouter.patch("/book/:id",
     ,updateBook)
 bookRouter.delete("/book/delete/:id",deleteBook)
 bookRouter.post("/book/return", returnBook)
-
 module.exports = { bookRouter }

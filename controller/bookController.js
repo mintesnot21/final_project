@@ -2,9 +2,32 @@ const { bookModel } = require("../model/bookModel")
 const { loanModel } = require("../model/loanModel")
 const { reservationModel } = require("../model/reservationModel")
 const fs = require("fs")
+const { calculateFine } = require("../utils/calculateFee")
+const { userModel } = require("../model/userModel")
 
 
+const getHardCopyBooks = async(req, res)=>{
+    try {
+        const query = req.query
+        const hardCopyBooks = await bookModel.find({isHardCopy:true})
 
+        if(!hardCopyBooks){
+            res.status(404).json({
+                message:"there is no hard copy books."
+            })
+            return;
+        }
+        res.status(200).json({
+            success:true,
+            book:hardCopyBooks
+        })
+    } catch (error) {
+        res.status(500).json({
+            error:error.message
+        })
+        console.log(error)
+    }
+}
 const getAllbooks = async(req,res)=>{
     console.log("get all book route fired")
 
@@ -41,20 +64,29 @@ const getBookById = async(req,res)=>{
     }
 }
 
+
+
 const uploadBook = async(req,res)=>{
     console.log("upload book route fired")
     const book = req.files['book']?.[0].originalname || '';
     const coverImage = req.files['coverImage']?.[0].originalname || '';
     try {
+        console.log(req.body)
+        let isHardCopy;
+        if(req.body.type ==='hardcopy'){
+            isHardCopy = true
+        }
+        console.log(isHardCopy)
         const uploadedBook = new bookModel({
             ...req.body,
             book:book,
-            coverImage:coverImage
+            coverImage:coverImage,
+            isHardCopy,
+            available_copies:req.body.total_copies
             })
 
             const saved = await uploadedBook.save();
-            console.log("uploaded book: ",saved)
-        res.status(200).json({
+        res.status(200).json({ 
             book:saved
         })
 
@@ -68,7 +100,7 @@ const uploadBook = async(req,res)=>{
 }
 
 const updateBook = async(req, res)=>{
-    
+    console.log("update book route fires")
     try {
         const bookfile = req.files['book']?.[0].originalname || '';
         const coverImage = req.files['coverImage']?.[0].originalname || '';
@@ -110,12 +142,11 @@ const deleteBook = async(req,res)=>{
 
 const loanBook = async(req,res)=>{
     console.log("loan book route fires")
-    const userId = req.user._id
+    const userId = req.body.userId
     const bookId = req.params.id
-
     
     try { 
-        const loans = await loanModel.find()
+        const loans = await loanModel.find({userId, returned:false})
         const book = await bookModel.findById(bookId)
         const reservations = await reservationModel.find();
         
@@ -128,25 +159,42 @@ const loanBook = async(req,res)=>{
             return
         }
 
-        let prevLoan = loans.map(loan => {
-             let loaned = loan.userId?.includes(userId)
-             return loaned
-        });
-
-        let prevReservation = reservations?.forEach(user =>{
-            let reserved = user.userId.incldes(userId)
-            return reserved
-        })
-
-        if(!prevReservation){
-            if(book.available_copies <= 0){
-                res.status(403).json({
-                    message:"there is no copy in our catalog, we will inform you when book is available."
+        let prevLoan = loans.findIndex(loan => loan.userId.includes(userId));
+        let prevReservation = reservations.findIndex(res => res.userId.includes(userId));
+        console.log(prevLoan)
+        
+        if(prevLoan == -1){
+            if(book.available_copies > 0 && book.status == "available"){
+               let loan = new loanModel({
+                    bookId:bookId,
+                    issueDate:new Date(),
+                    dueDate:new Date(new Date().setDate(new Date().getDate() + 8))
                 })
-                return;
+                loan.userId.push(userId)
+                const loaned = await loan.save();
+                res.status(200).json({
+                    success:true,
+                    loaned
+                })
+    
+                if(loaned){
+                    book.available_copies--
+                    await book.save()
+                }
+            }else{
+                res.status(404).json({
+                    message:"book is not availabe in our catalog. we will inform you when book is available."
+                })
             }
-
-            if(!prevLoan[0] ){
+        }
+        else{
+            res.status(400).json({
+                message:"you must return loaned book in order to loan new one."
+            })
+        }
+        if(prevReservation == -1){
+          
+            if(prevLoan == -1 ){
                 let reservation = new reservationModel({
                     userId:userId,
                     bookId:book,
@@ -164,83 +212,77 @@ const loanBook = async(req,res)=>{
                 message:"you must return loaned book in order to loan new one."
             })
 
+        }else{
+            res.status(400).json({
+                message:"you already have previous reservation."
+            })
         }
-        if(prevLoan[0]){
+        if(prevLoan == 0){
             res.status(400).json({
                 message:"you must return loaned book in order to loan new one."
             })
         }
 
-        if(!prevLoan[prevLoan.length - 1]){
-            if(book.available_copies > 0 && book.status == "available"){
-               let loan = new loanModel({
-                    userId:userId,
-                    bookId:bookId,
-                    dueDate:new Date(),
-                    returnDate:new Date(new Date().setDate(new Date().getDate() + 8))
-                })
-                const loaned = await loan.save();
-                res.status(200).json({
-                    success:true,
-                    loaned
-                })
-    
-                if(loaned){
-                    book.available_copies--
-                    await book.save()
-                }
-            }else{
-                res.status(400).json({
-                    message:"book is not availabe in our catalog."
-                })
-            }
-        }
-        else{
-            res.status(400).json({
-                message:"you must return loaned book in order to loan new one."
-            })
-        }
 
     } catch (error) {
         res.status(500).json({
             error
         })
+        console.log(error)
     }
 }
 
 const returnBook = async(req,res)=>{
-    const{ userId, bookId }= req.body
- try {
-    let loans = await loanModel.find();
+    try {
+     const{ userId, bookId }= req.body
+    let loans = await loanModel.findOne({userId, bookId, returned:false});
 
-    let hasLoan = loans.findIndex(loan => loan.userId.includes(userId));
+        if(!loans){
+            console.log("there is no loan")
+            res.status(400).json({
+                message:"you are not loaned any book"
+            })
+        }
+        else{
+            const book = await bookModel.findOne({_id:bookId})
+            if(book){
+                console.log("total book: ",book.total_copies)
+                console.log("available book: ",book.available_copies)
 
-   console.log(hasLoan)
-   if(hasLoan !== -1 ){
-    const loanerId = loans.map(loan =>{
-        return loan.userId.filter(id => id == userId)
-    })
-    const book = await bookModel.findById(bookId)
-    console.log(loanerId)
-    // let filtered = loanerId.filter(lId  => lId != userId )
+                //if available book less than total book
+                    let returnAt = new Date(new Date().setDate(new Date().getDate() + 15));
+                    console.log("default case")
+                    
+                    const upRtn = await loanModel.findOne({userId, bookId, returned:false})
+                    let fee;
+                    if(returnAt > upRtn.dueDate){
+                        fee = calculateFine(upRtn.dueDate, returnAt)
+                        const user = await userModel.findOne({_id:userId})
+                        user.fine = fee
+                        await user.save();
+                        
+                    }
+                    upRtn.returned = true
+                    upRtn.returnDate = returnAt
+                    if(book.available_copies < book.total_copies){
+                        book.available_copies++
+                    }
+                    await upRtn.save()
+                    await book.save();
+                        res.status(200).json({
+                            message:"returned successfully.",
+                            fee: fee > 0 ? fee : null
+                        })
 
-    // const userInLoan = await loanModel.findOneAndUpdate({userId:userId}, {userId:filtered})
-    // if(book.available_copies <= book.total_copies){
-    //     book.available_copies++;
-    // }
-    // await book.save()
-    
-    // res.status(200).json({
-    //     message:"returned successfully."
-    // })
-    return;
-   }
+               
+            }
+        }
+
  } catch (error) {
     res.status(500).json({
         error:error.message
     })
  }
- console.log("userId", userId, "bookId", bookId)
 }
 
 
@@ -255,5 +297,6 @@ module.exports = {
     updateBook,
     deleteBook,
     loanBook,
-    returnBook
+    returnBook,
+    getHardCopyBooks
 }
