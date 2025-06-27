@@ -1,4 +1,5 @@
 const { default: mongoose, mongo }= require("mongoose")
+const crypto = require("crypto")
 const validator = require("validator")
 const userSchema = new mongoose.Schema({
     id:{
@@ -49,7 +50,25 @@ const userSchema = new mongoose.Schema({
         type:Date,
         default:Date.now
     },
+    passwordResetToken:{
+        type:String
+    },
+    passwordResetTokenExpires:{
+        type:Date
+    }
 },{timestamps:true})
+
+  userSchema.methods.getUserInfo = function() {
+    
+    let resetToken = crypto.randomBytes(32).toString("hex")
+    this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest("hex")
+    this.passwordResetTokenExpires = Date.now() + 10 * 60 * 60 * 1000
+
+    console.log("plain ", resetToken)
+    console.log("encrypted: ",this.passwordResetToken)
+    return resetToken
+
+  };
 
 
 const userModel = mongoose.model("user",userSchema)

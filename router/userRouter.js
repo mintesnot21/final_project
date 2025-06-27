@@ -7,6 +7,8 @@ const {
     getAllUser, 
     getUserById, 
     Statistics,
+    forgotPassword,
+    resetPassword,
 } = require("../controller/userController")
 
 
@@ -16,6 +18,7 @@ userRouter.post("/createUser", createUser)
 userRouter.patch("/updateUser/:id",checkUser,checkRole('admin'), updateUser)
 userRouter.delete("/deleteUser/:id",checkUser,checkRole('admin'),deleteUser)
 userRouter.get("/dashboard", Statistics)
-
+userRouter.post("/forgot-password", forgotPassword)
+userRouter.patch('/reset-password/:token', resetPassword)
 
 module.exports = { userRouter }

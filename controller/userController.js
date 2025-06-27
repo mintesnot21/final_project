@@ -4,6 +4,7 @@ const { loanModel } = require("../model/loanModel")
 const { userModel } = require("../model/userModel")
 const { CustomError } = require("../utils/customErrorHandler")
 const { hashPassword } = require("../utils/hashPassword")
+const crypto = require('crypto');
 
 const createUser = async(req,res, next)=>{
         const{email,password} = req.body
@@ -166,6 +167,61 @@ const Statistics = async(req,res)=>{
     }
 }
 
+const forgotPassword = async(req,res)=>{
+    try {
+        console.log("forgot password route fired")
+        const { email } = req.body
+        const user = await userModel.findOne({email})
+        if(!email){
+            res.status(400).json({
+                message:"We could not find user with provided email."
+            })
+            return
+        }
+
+        const ResetToken = user.getUserInfo();
+        await user.save({validateBeforeSave:false})
+
+        const link = `http://localhost:5173/reset-password/${ResetToken}`
+
+        // reset link email sent here
+        res.status(200).json({
+            link
+        })
+
+    } catch (error) {
+        console.log(error.message)
+    }
+}
+
+const resetPassword = async(req,res)=>{
+    try {
+
+        const ResetToken = crypto.createHash("sha256").update(req.params.token).digest('hex')
+        const resetUser =  await userModel.findOne({passwordResetToken:ResetToken, passwordResetTokenExpires:{$gt:Date.now()}})
+        console.log("reset token: ",ResetToken)
+        if(!resetUser){
+            res.status(400).json({
+                message:'token is invalid or has expired.'
+            })
+            return
+        }
+        resetUser.password = req.body.password
+        resetUser.passwordResetToken = undefined
+        resetUser.passwordResetTokenExpires = undefined
+
+        await resetUser.save()
+        res.status(200).json({
+            message:"password updated successfully."
+        })
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({
+            error:error.message
+        })
+    }
+}
+
 
 module.exports = { 
     getAllUser, 
@@ -174,4 +230,6 @@ module.exports = {
     updateUser, 
     deleteUser, 
     Statistics,
+    forgotPassword,
+    resetPassword
 }
