@@ -9,10 +9,8 @@ require("dotenv").config();
 
 
 const login = async(req, res)=>{
-    console.log("login route called");
     
     const{email, password} = req.body
-    console.log(req.body)
     try {
         const user = await userModel.findOne({email})
         
@@ -21,17 +19,16 @@ const login = async(req, res)=>{
                 type:"email",
                 message:"user not found"
             })
+            console.log("user not found")
             return
         }
-        console.log(user)
         let token = generateJwtToken(user._id)
-        console.log(token)
         const ispasswordCorrect = await bcrypt.compare(password, user.password)
-        console.log(ispasswordCorrect)
         if(!ispasswordCorrect){
             res.status(400).json({
-                type:"password",
-                message:"Incorrect password."
+                success:false,
+                type:'password',
+                message:'Incorrect password'
             })
             return;
         }
@@ -40,7 +37,9 @@ const login = async(req, res)=>{
             const token = await generateJwtToken(user._id)
             res.cookie("jwt", token)
             res.status(200).json({
-              user
+                success:true,
+                token,
+                user,
             })
             
         }
@@ -54,8 +53,7 @@ const login = async(req, res)=>{
 
 const checkUser = async(req,res, next)=>{
     try {
-        // console.log(req.cookies)
-        const token = req.cookies.jwt
+        const token = req.headers.authorization.split(' ')[1]
         if(!token){
             res.status(400).json({
                 message:"you are not logged in! please login."
@@ -67,12 +65,14 @@ const checkUser = async(req,res, next)=>{
                 res.status(400).json({
                     message:"Something went Wrong! try again later"
                 })
+                console.log("error verifying user")
                 return
             }
+            console.log(user)
             let found = await userModel.findOne({_id:user.id})
-            console.log(found)
             req.user = found
             next()
+            console.log("something")
         })
     } catch (error) {
         res.status(500).json({
@@ -81,11 +81,17 @@ const checkUser = async(req,res, next)=>{
     }
 }
 
-const checkrole = async(role)=>{
+const checkRole = (role)=>{
     return(req,res,next)=>{
-        
+        if(req.user.role !== role){
+            req.status(403).json({
+                message:"you are unauthorized to perform this action."
+            })
+            return
+        }
+        next()
     }
 }
 
 
-module.exports = {  login, checkUser }
+module.exports = {  login, checkUser, checkRole }

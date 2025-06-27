@@ -40,18 +40,45 @@ app.use("/api/auth",router)
 app.use("/api", bookRouter)
 app.use("/api", userRouter)
 
-app.get("/resetCookie", (req,res)=>{
-    res.cookie("jwt", "")
-    res.send("cookie reseted")
-})
 
-app.get("/readCookies", (req,res)=>{
-    const cookie = req.cookies.jwt;
-    res.status(200).send(cookie)
-})
 // app.use(errorController)
-
+app.get("/setCookie", (req,res)=>{
+    res.cookie("jwt", '')
+    res.send("setted")
+})
 
 app.listen(port, ()=>{
     console.log(`server running on port ${port}`)
 })
+
+// const Statistics = async(req,res)=>{
+//     const today = new Date();
+//     const ThreeDaysAgo = new Date().setDate(today.getDate() - 3)
+//     try {
+//        const [bookAdded, userAdded,totalBook, totalUser, pendingOrder , availableBooks,activeUser] =  Promise.all([
+//             bookModel.countDocuments({createdAt:{$gte:ThreeDaysAgo, $lte:today}}),
+//             userModel.countDocuments({createdAt:{$gte:ThreeDaysAgo, $lte:today}}),
+//             bookModel.countDocuments(),
+//             userModel.countDocuments(),
+//             loanModel.countDocuments({status:'pending'}),
+//             bookModel.countDocuments({status:'available'}),
+//             loanModel.countDocuments({dueDate:{$lt:new Date()}}),
+//             userModel.countDocuments({status:'active'})
+//         ])
+
+//         res.status(200).json({
+//             bookAddedLast3Days:bookAdded,
+//             userAddedLast3Days:userAdded,
+//             totalBook,
+//             totalUser,
+//             pendingOrder,
+//             availableBooks,
+//             activeUser
+//         })
+
+//     } catch (error) {
+//         res.status(500).json(
+//            { error:error.message}
+//         )
+//     }
+// }

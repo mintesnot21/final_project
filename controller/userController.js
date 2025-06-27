@@ -1,3 +1,6 @@
+const { ActivityLogModel } = require("../model/ActivityLogSchema")
+const { bookModel } = require("../model/bookModel")
+const { loanModel } = require("../model/loanModel")
 const { userModel } = require("../model/userModel")
 const { CustomError } = require("../utils/customErrorHandler")
 const { hashPassword } = require("../utils/hashPassword")
@@ -26,13 +29,17 @@ const createUser = async(req,res, next)=>{
         const User = await userModel.create({id:ID,...req.body, password:hashedPassword})
 
         let savedUser = await User.save();
-        console.log(savedUser)
         if(!savedUser){
             res.status(400).json({
                 message:"unable to create user."
             })
             return
         }
+        await ActivityLogModel.create({
+            type:'user-registered',
+            userId:savedUser._id,
+            message:`${savedUser.firstname} ${ savedUser.lastname } registered`
+        })
 
         res.status(201).json({
             success:true,
@@ -126,27 +133,39 @@ const deleteUser = async(req,res)=>{
     }
 }
 
-const userStatistics = async(req,res)=>{
+
+const Statistics = async(req,res)=>{
+    const today = new Date();
+    const ThreeDaysAgo = new Date().setDate(today.getDate() - 3)
     try {
-        const stat = await userModel.aggregate()
+       const [bookAdded, userAdded,totalBook, totalUser, pendingOrder , availableBooks,activeUser] =  Promise.all([
+            bookModel.countDocuments({createdAt:{$gte:ThreeDaysAgo, $lte:today}}),
+            userModel.countDocuments({createdAt:{$gte:ThreeDaysAgo, $lte:today}}),
+            bookModel.countDocuments(),
+            userModel.countDocuments(),
+            loanModel.countDocuments({status:'pending'}),
+            bookModel.countDocuments({status:'available'}),
+            loanModel.countDocuments({dueDate:{$lt:new Date()}}),
+            userModel.countDocuments({status:'active'})
+        ])
+
+        res.status(200).json({
+            bookAddedLast3Days:bookAdded,
+            userAddedLast3Days:userAdded,
+            totalBook,
+            totalUser,
+            pendingOrder,
+            availableBooks,
+            activeUser
+        })
+
     } catch (error) {
-        
+        res.status(500).json(
+           { error:error.message}
+        )
     }
 }
 
-const notifyUser = async(req, res)=>{
-    let userId = req.userId
-    let overDueLoan = await loanModel.find({returnDate:{$lt:Date.now}, returned:false})
-    overDueLoan.map(async(user)=>{
-        if(user.userId.includes(userId)){
-            let user = await userModel.findById(userId)
-
-            //notfication logic goes here
-
-            return
-        }
-    })
-}
 
 module.exports = { 
     getAllUser, 
@@ -154,6 +173,5 @@ module.exports = {
     createUser, 
     updateUser, 
     deleteUser, 
-    userStatistics,
-    notifyUser
+    Statistics,
 }

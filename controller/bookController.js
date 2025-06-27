@@ -4,12 +4,24 @@ const { reservationModel } = require("../model/reservationModel")
 const fs = require("fs")
 const { calculateFine } = require("../utils/calculateFee")
 const { userModel } = require("../model/userModel")
+const { ActivityLogModel } = require("../model/ActivityLogSchema")
 
 
 const getHardCopyBooks = async(req, res)=>{
     try {
         const query = req.query
-        const hardCopyBooks = await bookModel.find({isHardCopy:true})
+        const hardCopyBooks = await bookModel.aggregate([
+            {$match:{isHardCopy:true}},
+            {$group :{
+                _id:"$category",
+                books:{$push: "$$ROOT"}
+            }},
+            {$project:{
+                _id:0,
+                category:"$_id",
+                books:1
+            }}
+        ])
 
         if(!hardCopyBooks){
             res.status(404).json({
@@ -32,7 +44,7 @@ const getAllbooks = async(req,res)=>{
     console.log("get all book route fired")
 
     try {
-        const books = await bookModel.find()
+        const books = await bookModel.find({isHardCopy:false})
         res.status(200).json({
             success:true,
             books
@@ -67,16 +79,13 @@ const getBookById = async(req,res)=>{
 
 
 const uploadBook = async(req,res)=>{
-    console.log("upload book route fired")
     const book = req.files['book']?.[0].originalname || '';
     const coverImage = req.files['coverImage']?.[0].originalname || '';
     try {
-        console.log(req.body)
         let isHardCopy;
         if(req.body.type ==='hardcopy'){
             isHardCopy = true
         }
-        console.log(isHardCopy)
         const uploadedBook = new bookModel({
             ...req.body,
             book:book,
@@ -85,7 +94,12 @@ const uploadBook = async(req,res)=>{
             available_copies:req.body.total_copies
             })
 
-            const saved = await uploadedBook.save();
+         const saved = await uploadedBook.save();
+         await ActivityLogModel.create({
+            type:'book-added',
+            bookId:saved._id,
+            message: `Book ${ saved.title } was added.`
+         })
         res.status(200).json({ 
             book:saved
         })
@@ -100,15 +114,22 @@ const uploadBook = async(req,res)=>{
 }
 
 const updateBook = async(req, res)=>{
-    console.log("update book route fires")
     try {
+        console.log("type: ",req.body.type)
+        let isHardCopy;
+        if(req.body.type ==='hardcopy'){
+            isHardCopy = true
+        }
+
         const bookfile = req.files['book']?.[0].originalname || '';
         const coverImage = req.files['coverImage']?.[0].originalname || '';
         const updatedBook = await bookModel.findByIdAndUpdate(req.params.id,
                                                         {
                                                         ...req.body,
                                                         book:bookfile,
-                                                        coverImage:coverImage
+                                                        coverImage:coverImage,
+                                                        category:req.body.category,
+                                                        isHardCopy:isHardCopy
                                                         })
             res.status(200).json({message:"book updated successfully." })
     } catch (error) {
@@ -142,7 +163,7 @@ const deleteBook = async(req,res)=>{
 
 const loanBook = async(req,res)=>{
     console.log("loan book route fires")
-    const userId = req.body.userId
+    const userId = req.user._id
     const bookId = req.params.id
     
     try { 
@@ -158,6 +179,10 @@ const loanBook = async(req,res)=>{
             })
             return
         }
+        if(book.available_copies <= 0){
+            book.status = 'checkedout'
+            await book.save();
+        }
 
         let prevLoan = loans.findIndex(loan => loan.userId.includes(userId));
         let prevReservation = reservations.findIndex(res => res.userId.includes(userId));
@@ -172,11 +197,19 @@ const loanBook = async(req,res)=>{
                 })
                 loan.userId.push(userId)
                 const loaned = await loan.save();
+
+                new ActivityLogModel.create({
+                    type:'book-borrowed',
+                    bookId:bookId,
+                    userId:userId,
+                    message:`User borrowed ${book.title}`
+                })
+
                 res.status(200).json({
                     success:true,
+                    message:"loan succeed. we will sent you four digit secret in you mobile.",
                     loaned
                 })
-    
                 if(loaned){
                     book.available_copies--
                     await book.save()
@@ -232,9 +265,30 @@ const loanBook = async(req,res)=>{
     }
 }
 
+const updateLoan = async(req,res)=>{
+    try {
+        const updated = await loanModel.findByIdAndUpdate(req.params.id, req.body)
+        if(!updated){
+            res.status(400).json({
+                message:"unable to update loan."
+            })
+            return
+        }
+        res.status(200).json({
+            success:true,
+            loan:updated
+        })
+    } catch (error) {
+        res.status(500).json({
+            message:error.message
+        })
+    }
+}
+
 const returnBook = async(req,res)=>{
     try {
-     const{ userId, bookId }= req.body
+        const userId = req.user._id
+        const{ bookId }= req.body
     let loans = await loanModel.findOne({userId, bookId, returned:false});
 
         if(!loans){
@@ -257,11 +311,12 @@ const returnBook = async(req,res)=>{
                     let fee;
                     if(returnAt > upRtn.dueDate){
                         fee = calculateFine(upRtn.dueDate, returnAt)
-                        const user = await userModel.findOne({_id:userId})
+                        const user = await loanModel.findOne({_id:userId})
                         user.fine = fee
                         await user.save();
                         
                     }
+                    upRtn.status = 'returned'
                     upRtn.returned = true
                     upRtn.returnDate = returnAt
                     if(book.available_copies < book.total_copies){
@@ -298,5 +353,6 @@ module.exports = {
     deleteBook,
     loanBook,
     returnBook,
-    getHardCopyBooks
+    getHardCopyBooks,
+    updateLoan
 }

@@ -13,6 +13,11 @@ const loanSchema = new mongoose.Schema({
         type:Date,
         default:Date.now
     },
+    status:{
+        type:String,
+        enum:["pending","active", "returned"],
+        default:"pending"
+    },
     dueDate:{
         type:Date
     },
@@ -23,6 +28,14 @@ const loanSchema = new mongoose.Schema({
         type:Boolean,
         default:false
     },
+    fine:{
+        type:Number,
+        default:0
+    },
+    paid:{
+        type:Boolean,
+        default: false
+    }
 },{timeseries:true})
 
 const loanModel = mongoose.model("loan",loanSchema)
